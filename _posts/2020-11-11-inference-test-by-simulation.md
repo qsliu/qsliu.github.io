@@ -43,7 +43,7 @@ Yao 同时也指出randomisation approach的缺点。
 
 在这篇博客中，我们就从Cortes et al.的文章和代码入手，分析一下inference的具体实现。
 
-![image-20201111134434926](images\image-20201111134434926.png)
+![image-20201111134434926](/images/image-20201111134434926.png)
 
 
 
