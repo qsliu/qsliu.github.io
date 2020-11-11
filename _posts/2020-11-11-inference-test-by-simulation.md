@@ -2,6 +2,7 @@
 title: 'Inference test by simulation'
 date: 2020-11-11
 permalink: /posts/2020/11/inference-test-by-simulation/
+toc:
 tags:
   - inference test
   - simulation
@@ -9,9 +10,6 @@ tags:
 ---
 
 
-------
-
-\* TOC {:toc}
 
 ## Inference
 
