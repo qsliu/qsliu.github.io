@@ -11,7 +11,7 @@ tags:
 
 
 
-## Inference
+## 1. Inference
 
 推断在现代地理学的计算中是很重要的一个方面。
 
@@ -92,7 +92,7 @@ $R$ 中的总人口: $T=\sum_{i=1}^n T_i=\sum_{i=1}^n\sum_{m=1}^M \tau_{im}$
 
 $R$ 中$m$族群的总人口: $T_m = \sum_{i=1}^n \tau_{im}$ where $m \in 1,2,...,M$
 
-### “systematic”
+### 1.1 “systematic”
 
 假设m族群的人口是均匀分布的，但是受到一些随机因素的影响。那么怎么在体现整体的均匀性的情况下，模拟这些随机因素呢？作者使用从 multinomial distribution中抽样的方法，假设，少数族裔$m$在$n$ 个区域内均匀分布，那
 $$
@@ -161,7 +161,71 @@ array([[3, 4, 3, 3, 4, 3], # random
        [2, 4, 3, 4, 0, 7]])
 ```
 
+### 1.2 "bootstrap"           
 
+  : generates bootstrap replications of the units with replacement of the same size of the original data.
+
+Bootstrap就是有放回的随机抽取。主要利用**np.random.choice**
+
+```python
+#############
+# BOOTSTRAP #
+#############
+if (null_approach == "bootstrap"):
+    
+    with tqdm(total=iterations_under_null) as pbar:
+        for i in np.array(range(iterations_under_null)):
+
+            sample_index = np.random.choice(data.index, size=len(data), replace=True)
+            df_aux = data.iloc[sample_index]
+            Estimates_Stars[i] = seg_class._function(df_aux, 'group_pop_var', 'total_pop_var', **kwargs)[0]
+
+```
+
+### 1.3 "evenness"
+
+: assumes that each spatial unit has the same global probability of drawing elements from the minority group of the fixed total unit population (binomial distribution).
+
+```python
+p_null = data['group_pop_var'].sum() / data['total_pop_var'].sum()
+
+for i in np.array(range(iterations_under_null)):
+    sim = np.random.binomial(n=np.array([data['total_pop_var'].tolist()]),p=p_null)
+    data_aux = {
+        'simul_group': sim[0],
+        'simul_tot': data['total_pop_var'].tolist()
+    }
+    df_aux = pd.DataFrame.from_dict(data_aux)
+
+    Estimates_Stars[i] = seg_class._function(df_aux, 'simul_group', 'simul_tot', **kwargs)[0]
+```
+
+
+
+查阅Python 说明
+
+`numpy.random.binomial`(*n*, *p*, *size=None*)[¶](https://numpy.org/doc/stable/reference/random/generated/numpy.random.binomial.html#numpy.random.binomial)
+
+Draw samples from a binomial distribution.
+
+Samples are drawn from a binomial distribution with specified parameters, *n* trials and *p* probability of success where *n* an integer >= 0 and *p* is in the interval [0,1]. (*n* may be input as a float, but it is truncated to an integer in use)
+
+The probability density for the binomial distribution is
+$$
+P(N) = \begin{pmatrix}n\\N\end{pmatrix} p^N(1-p)^{n-N}
+$$
+where *n* is the number of trials, *p* is the probability of success, and *N* is the number of successes.
+
+When estimating the **standard error** of a proportion in a population by using a random sample, the normal distribution works well unless the product p\*n <=5, where p = population proportion estimate, and n = number of samples, in which case the binomial distribution is used instead. For example, a sample of 15 people shows 4 who are left handed, and 11 who are right handed. Then p = 4/15 = 27%. 0.27\*15 = 4, so the binomial distribution should be used in this case.
+
+当使用随机样本估计人口中比例的**标准误差**时，正态分布效果很好，除非乘积p*n<=5，其中p=人口比例估计，n=样本数，在这种情况下，改用二项分布。例如，一个15人的样本显示4人是左手，11人是右手。那么p=4/15=27%。0.27*15=4，所以在这种情况下应该使用二项分布。
+
+为了便于理解，有以下例子，
+
+```python
+np.random.binomial([[10,10,10]],p=0.2)
+#array([[1, 3, 1]])
+```
 
 
 
