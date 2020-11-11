@@ -11,7 +11,7 @@ tags:
 
 ------
 
-
+\* TOC {:toc}
 
 ## Inference
 
@@ -63,7 +63,6 @@ D.statistic
 # 0.32184656076566864
 infer_D_eve = SingleValueTest(D, iterations_under_null = 1000, null_approach = "evenness", two_tailed = True)
 infer_D_eve.plot()
-
 ```
 
 ![image-20201111141427156](/images/blog/2020-11-11/image-20201111141427156.png)
@@ -87,49 +86,84 @@ infer_D_eve.plot()
 
 根据作者的说明，我们很难推断出作者是怎么实现的。但是我们可以看出使用参数permutation, 就是传统的**random labeling approach**。那其他的方法是怎么实现的呢？我们就从代码入手逐个分析。
 
-假设在一个区域$R$ 中，分布着不相互重叠的$n$ 个不同的单元，我们用$i,j \in 1,2,...,n$ 来索引。两个族群 $m$ 和 $n$. 
+假设在一个区域$R$ 中，分布着不相互重叠的$n$ 个不同的单元, 我们用$i\in 1,2,...,n$ 来索引。假设区域$R$ 中有$M$个不同的族群，我们用$m \in 1,..,m$ 来索引。每个单元的每个族群人口总数分别是$\tau_{im}$. 那么
+
+每个单元的总人口$T_i = \sum_{m=1}^M \tau_{im}$ where $i=1,...,n$. 
+
+$R$ 中的总人口: $T=\sum_{i=1}^n T_i=\sum_{i=1}^n\sum_{m=1}^M \tau_{im}$
+
+$R$ 中$m$族群的总人口: $T_m = \sum_{i=1}^n \tau_{im}$ where $m \in 1,2,...,M$
 
 ### “systematic”
 
-假设m族群的人口是均匀分布的，但是受到一些随机因素的影响。那么怎么在体现整体的均匀性的情况下，模拟这些随机因素呢？作者使用从 multinomial distribution中抽样的方法，假设，所有的单元都遵循同一个概率分布。assumes that every group has the same probability with restricted conditional probabilities p_0_j = p_1_j = p_j = n_j/n (multinomial distribution).
+假设m族群的人口是均匀分布的，但是受到一些随机因素的影响。那么怎么在体现整体的均匀性的情况下，模拟这些随机因素呢？作者使用从 multinomial distribution中抽样的方法，假设，少数族裔$m$在$n$ 个区域内均匀分布，那
+$$
+p_1=\frac{\tau_{1m}}{T_m}=\frac{T_1}{T} \\
+p_2=\frac{\tau_{2m}}{T_m}=\frac{T_2}{T}\\
+\vdots \\
+p_n = \frac{\tau_{nm}}{T_m}=\frac{T_n}{T}\\
+$$
+
+
+下面代码中的`p_j` 就是[$p_1,...,p_n$]
 
 ```python
-    ##############
-    # SYSTEMATIC #
-    ##############
-    #
-    if (null_approach == "systematic"):
-        data['other_group_pop'] = data['total_pop_var'] - data['group_pop_var']
-        p_j = data['total_pop_var'] / data['total_pop_var'].sum()
+##############
+# SYSTEMATIC #
+##############
+if (null_approach == "systematic"):
+    data['other_group_pop'] = data['total_pop_var'] - data['group_pop_var']
+    p_j = data['total_pop_var'] / data['total_pop_var'].sum() 
 
-        # Group 0: minority group
-        p0_i = p_j
-        n0 = data['group_pop_var'].sum()
-        sim0 = np.random.multinomial(n0, p0_i, size=iterations_under_null)
+    # Group 0: minority group
+    p0_i = p_j
+    n0 = data['group_pop_var'].sum()
+    sim0 = np.random.multinomial(n0, p0_i, size=iterations_under_null)
 
-        # Group 1: complement group
-        p1_i = p_j
-        n1 = data['other_group_pop'].sum()
-        sim1 = np.random.multinomial(n1, p1_i, size=iterations_under_null)
-
-        with tqdm(total=iterations_under_null) as pbar:
-            for i in np.array(range(iterations_under_null)):
-                data_aux = {
-                    'simul_group': sim0[i].tolist(),
-                    'simul_tot': (sim0[i] + sim1[i]).tolist()
-                }
-                df_aux = pd.DataFrame.from_dict(data_aux)
-
-                if (str(type(data)) == '<class \'geopandas.geodataframe.GeoDataFrame\'>'):
-                    df_aux = gpd.GeoDataFrame(df_aux)
-                    df_aux['geometry'] = data['geometry']
-
-                    Estimates_Stars[i] = seg_class._function(df_aux, 'simul_group', 'simul_tot', **kwargs)[0]
-                    pbar.set_description('Processed {} iterations out of {}'.format(i + 1, iterations_under_null))
-                    pbar.update(1)
-
-
+    # Group 1: complement group
+    p1_i = p_j
+    n1 = data['other_group_pop'].sum()
+    sim1 = np.random.multinomial(n1, p1_i, size=iterations_under_null)
+    # ..........
+    # Omit some codes
+    # ..........
+    for i in np.array(range(iterations_under_null)):
+        data_aux = {
+            'simul_group': sim0[i].tolist(),
+            'simul_tot': (sim0[i] + sim1[i]).tolist()
+        }
+        df_aux = pd.DataFrame.from_dict(data_aux)
+    # ..........
+    # Omit some codes
+    # ..........
 ```
+
+我们可以看出，关键函数是 **numpy.random.multinomial**
+
+我们从 https://numpy.org/doc/stable/reference/random/generated/numpy.random.multinomial.html 找到此函数的文档说明。
+
+`numpy.random.multinomial`(*n*, *pvals*, *size=None*)
+
+Draw samples from a multinomial distribution.
+
+The multinomial distribution is a multivariate generalization of the binomial distribution. Take an experiment with one of `p` possible outcomes. An example of such an experiment is throwing a dice, where the outcome can be 1 through 6. Each sample drawn from the distribution represents *n* such experiments. Its values, `X_i = [X_0, X_1, ..., X_p]`, represent the number of times the outcome was `i`.
+
+为了便于理解，这里有一个投色子的例子。假设我们的色子是质地均匀的，那么色子的6个面朝上的几率是均等的，都是1/6。第二个参数[1/6.,1/6.,1/6.,1/6.,1/6.,1/6.] 就代表了每个面朝上的概率。第一个参数20，表示我们掷了20次色子。返回的结果[4, 1, 7, 5, 2, 1] 就是做完20次实验之后每个面朝上的模拟次数。
+
+```python
+np.random.multinomial(20, [1/6.,1/6.,1/6.,1/6.,1/6.,1/6.], size=1)
+#array([[4, 1, 7, 5, 2, 1]]) # random
+```
+
+我们可以更改 `size` 参数, 来做很多组实验。每组掷20次色子。
+
+```python
+np.random.multinomial(20, [1/6.]*6, size=2)
+array([[3, 4, 3, 3, 4, 3], # random
+       [2, 4, 3, 4, 0, 7]])
+```
+
+
 
 
 
