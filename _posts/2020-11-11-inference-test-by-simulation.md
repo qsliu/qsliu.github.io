@@ -44,6 +44,8 @@ Yao 同时也指出randomisation approach的缺点。
 * single value inference
 * comparative inference
 
+## 2. single value inference
+
 作者首先给出了 推断 dissimilarity index的显著性的例子
 
 ```python
@@ -92,7 +94,7 @@ $R$ 中的总人口: $T=\sum_{i=1}^n T_i=\sum_{i=1}^n\sum_{m=1}^M \tau_{im}$
 
 $R$ 中$m$族群的总人口: $T_m = \sum_{i=1}^n \tau_{im}$ where $m \in 1,2,...,M$
 
-### 1.1 “systematic”
+### 2.1 “systematic”
 
 假设m族群的人口是均匀分布的，但是受到一些随机因素的影响。那么怎么在体现整体的均匀性的情况下，模拟这些随机因素呢？作者使用从 multinomial distribution中抽样的方法，假设，少数族裔$m$在$n$ 个区域内均匀分布，那
 $$
@@ -161,7 +163,7 @@ array([[3, 4, 3, 3, 4, 3], # random
        [2, 4, 3, 4, 0, 7]])
 ```
 
-### 1.2 "bootstrap"           
+### 2.2 "bootstrap"           
 
   : generates bootstrap replications of the units with replacement of the same size of the original data.
 
@@ -182,7 +184,7 @@ if (null_approach == "bootstrap"):
 
 ```
 
-### 1.3 "evenness"
+### 2.3 "evenness"
 
 : assumes that each spatial unit has the same global probability of drawing elements from the minority group of the fixed total unit population (binomial distribution).
 
@@ -226,6 +228,197 @@ When estimating the **standard error** of a proportion in a population by using 
 np.random.binomial([[10,10,10]],p=0.2)
 #array([[1, 3, 1]])
 ```
+
+
+
+### 2.4 "permutation"            
+
+: randomly allocates the units over space keeping the original values.
+
+```python
+###############
+# PERMUTATION #
+###############
+if (null_approach == "permutation"):
+    
+    for i in np.array(range(iterations_under_null)):
+        data = data.assign(geometry=data['geometry'][list(np.random.choice(data.shape[0], data.shape[0],replace=False))].reset_index()['geometry'])
+        df_aux = data
+        Estimates_Stars[i] = seg_class._function(df_aux, 'group_pop_var', 'total_pop_var', **kwargs)[0]
+
+                
+```
+
+
+
+### 2.5 "systematic_permutation" 
+
+: assumes absence of systematic segregation and randomly allocates the units over space. 
+
+就是先进行 systematric分配，在permutation.
+
+```python
+if (null_approach == "systematic_permutation"):
+    
+    if ('multigroup' not in str(type(seg_class))):
+
+        if (str(type(data)) != '<class \'geopandas.geodataframe.GeoDataFrame\'>'):
+            raise TypeError('data is not a GeoDataFrame, therefore, this null approach does not apply.')
+
+        data['other_group_pop'] = data['total_pop_var'] - data['group_pop_var']
+        p_j = data['total_pop_var'] / data['total_pop_var'].sum()
+
+        # Group 0: minority group
+        p0_i = p_j
+        n0 = data['group_pop_var'].sum()
+        sim0 = np.random.multinomial(n0, p0_i, size=iterations_under_null)
+
+        # Group 1: complement group
+        p1_i = p_j
+        n1 = data['other_group_pop'].sum()
+        sim1 = np.random.multinomial(n1, p1_i, size=iterations_under_null)
+
+        with tqdm(total=iterations_under_null) as pbar:
+            for i in np.array(range(iterations_under_null)):
+                data_aux = {
+                    'simul_group': sim0[i].tolist(),
+                    'simul_tot': (sim0[i] + sim1[i]).tolist()
+                }
+                df_aux = pd.DataFrame.from_dict(data_aux)
+                df_aux = gpd.GeoDataFrame(df_aux)
+                df_aux['geometry'] = data['geometry']
+                df_aux = df_aux.assign(geometry=df_aux['geometry'][list(
+                    np.random.choice(
+                        df_aux.shape[0], df_aux.shape[0],
+                        replace=False))].reset_index()['geometry'])
+                Estimates_Stars[i] = seg_class._function(
+                    df_aux, 'simul_group', 'simul_tot', **kwargs)[0]
+
+                pbar.set_description(
+                    'Processed {} iterations out of {}'.format(
+                        i + 1, iterations_under_null))
+                pbar.update(1)
+                
+    if ('multigroup' in str(type(seg_class))):
+        raise ValueError('Not implemented for MultiGroup indexes.')
+```
+
+
+
+### 2.6 "even_permutation"       
+
+: assumes the same global probability of drawning elements from the minority group in each spatial unit and randomly allocates the units over space.
+
+就是先进行 evenness 分配，在permutation.
+
+```python
+if (null_approach == "even_permutation"):
+    
+    if ('multigroup' not in str(type(seg_class))):
+
+        if (str(type(data)) != '<class \'geopandas.geodataframe.GeoDataFrame\'>'):
+            raise TypeError('data is not a GeoDataFrame, therefore, this null approach does not apply.')
+
+        p_null = data['group_pop_var'].sum() / data['total_pop_var'].sum()
+
+        with tqdm(total=iterations_under_null) as pbar:
+            for i in np.array(range(iterations_under_null)):
+                sim = np.random.binomial(n=np.array(
+                    [data['total_pop_var'].tolist()]),
+                                         p=p_null)
+                data_aux = {
+                    'simul_group': sim[0],
+                    'simul_tot': data['total_pop_var'].tolist()
+                }
+                df_aux = pd.DataFrame.from_dict(data_aux)
+                df_aux = gpd.GeoDataFrame(df_aux)
+                df_aux['geometry'] = data['geometry']
+                df_aux = df_aux.assign(geometry=df_aux['geometry'][list(
+                    np.random.choice(
+                        df_aux.shape[0], df_aux.shape[0],
+                        replace=False))].reset_index()['geometry'])
+                Estimates_Stars[i] = seg_class._function(
+                    df_aux, 'simul_group', 'simul_tot', **kwargs)[0]
+                pbar.set_description(
+                    'Processed {} iterations out of {}'.format(
+                        i + 1, iterations_under_null))
+                pbar.update(1)
+                
+    if ('multigroup' in str(type(seg_class))):
+        raise ValueError('Not implemented for MultiGroup indexes.')
+```
+
+
+
+## 3 two value inference
+
+* "**random_label**"               : random label the data in each iteration
+          
+* "**counterfactual_composition**" : randomizes the number of minority population according to both cumulative distribution function of a variable that represents the composition of the minority group. The composition is the division of the minority population of unit i divided by total population of tract i.
+      
+* "**counterfactual_share**" : randomizes the number of minority population and total population according to both cumulative distribution function of a variable that represents the share of the minority group. The share is the division of the minority population of unit i divided by total population of minority population.
+          
+* "**counterfactual_dual_composition**" : applies the "counterfactual_composition" for both minority and complementary groups.
+
+### 3.1 random label
+
+
+
+```python
+################
+# RANDOM LABEL #
+################
+if (null_approach == "random_label"):
+    data_1['grouping_variable'] = 'Group_1'
+    data_2['grouping_variable'] = 'Group_2'
+    
+    if ('multigroup' not in str(type(seg_class_1))):
+        
+        # This step is just to make sure the each frequecy column is integer for the approaches and from the same type in order to be able to stack them
+        data_1['group_pop_var'] = round(data_1['group_pop_var']).astype(int)
+        data_1['total_pop_var'] = round(data_1['total_pop_var']).astype(int)
+
+        data_2['group_pop_var'] = round(data_2['group_pop_var']).astype(int)
+        data_2['total_pop_var'] = round(data_2['total_pop_var']).astype(int)
+
+        stacked_data = pd.concat([data_1, data_2], ignore_index=True)
+
+        with tqdm(total=iterations_under_null) as pbar:
+            for i in np.array(range(iterations_under_null)):
+
+                stacked_data['grouping_variable'] = np.random.permutation(stacked_data['grouping_variable'])
+
+                stacked_data_1 = stacked_data.loc[stacked_data['grouping_variable'] == 'Group_1']
+                stacked_data_2 = stacked_data.loc[stacked_data['grouping_variable'] == 'Group_2']
+
+                simulations_1 = seg_class_1._function(stacked_data_1,'group_pop_var','total_pop_var',**kwargs)[0]
+                simulations_2 = seg_class_2._function(stacked_data_2,'group_pop_var','total_pop_var',**kwargs)[0]
+
+                est_sim[i] = simulations_1 - simulations_2
+                pbar.set_description('Processed {} iterations out of {}'.format(i + 1, iterations_under_null))
+                pbar.update(1)
+```
+
+主要函数 `np.random.permutation`
+
+`numpy.random.``permutation`(*x*)
+
+Randomly permute a sequence, or return a permuted range.
+
+If *x* is a multi-dimensional array, it is only shuffled along its first index.
+
+```python
+np.random.permutation([1, 4, 9, 12, 15])
+#array([15,  1,  9,  4, 12]) # random
+```
+
+![img](/images/blog/2020-11-11/20201111_clip_image001.png)
+
+
+
+### 3.2 "**counterfactual_composition**" 
+
+: randomizes the number of minority population according to both cumulative distribution function of a variable that represents the composition of the minority group. The composition is the division of the minority population of unit i divided by total population of tract i.
 
 
 
