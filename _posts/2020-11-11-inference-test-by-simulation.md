@@ -41,9 +41,95 @@ Yao 同时也指出randomisation approach的缺点。
 
 其实，Cortes et al.的方法弥补了Yao et al.提出的缺点。
 
-在这篇博客中，我们就从Cortes et al.的文章和代码入手，分析一下inference的具体实现。
+在这篇博客中，我们就从Cortes et al.的文章和代码入手，分析一下inference的具体实现。代码中实现了两种类型的inference.
 
-![image-20201111134434926](/images/image-20201111134434926.png)
+* single value inference
+* comparative inference
+
+作者首先给出了 推断 dissimilarity index的显著性的例子
+
+```python
+import geopandas as gpd
+import segregation
+import libpysal
+import pandas as pd
+import numpy as np
+
+from segregation.inference import SingleValueTest, TwoValueTest
+from segregation.aspatial import Dissim
+s_map = gpd.read_file("sacramentot2.shp")
+D = Dissim(gdf, 'HISP_', 'TOT_POP') #在这里，作者对Dissimilarity的公式理解存疑。因为传统的公式是针对两个族群的,比如White and black
+D.statistic
+# 0.32184656076566864
+infer_D_eve = SingleValueTest(D, iterations_under_null = 1000, null_approach = "evenness", two_tailed = True)
+infer_D_eve.plot()
+
+```
+
+![image-20201111141427156](/images/blog/2020-11-11/image-20201111141427156.png)
+
+我们可以明显的看出，实际值比模拟值明显处在差异。
+
+`SingleValueTest`是作者实现的一个Python 类(segregation/inference/inference_wrappers.py).
+
+其他参数很好理解，我们这里只讨论`null_approach参数,作者在代码中这样写道：`
+
+```python
+"systematic"             : assumes that every group has the same probability with restricted conditional probabilities p_0_j = p_1_j = p_j = n_j/n (multinomial distribution).
+"bootstrap"              : generates bootstrap replications of the units with replacement of the same size of the original data.
+"evenness"               : assumes that each spatial unit has the same global probability of drawing elements from the minority group of the fixed total unit population (binomial distribution).
+
+"permutation"            : randomly allocates the units over space keeping the original values.
+
+"systematic_permutation" : assumes absence of systematic segregation and randomly allocates the units over space.
+"even_permutation"       : assumes the same global probability of drawning elements from the minority group in each spatial unit and randomly allocates the units over space.
+```
+
+根据作者的说明，我们很难推断出作者是怎么实现的。但是我们可以看出使用参数permutation, 就是传统的**random labeling approach**。那其他的方法是怎么实现的呢？我们就从代码入手逐个分析。
+
+假设在一个区域$R$ 中，分布着不相互重叠的$n$ 个不同的单元，我们用$i,j \in 1,2,...,n$ 来索引。两个族群 $m$ 和 $n$. 
+
+### “systematic”
+
+假设m族群的人口是均匀分布的，但是受到一些随机因素的影响。那么怎么在体现整体的均匀性的情况下，模拟这些随机因素呢？作者使用从 multinomial distribution中抽样的方法，假设，所有的单元都遵循同一个概率分布。assumes that every group has the same probability with restricted conditional probabilities p_0_j = p_1_j = p_j = n_j/n (multinomial distribution).
+
+```python
+    ##############
+    # SYSTEMATIC #
+    ##############
+    #
+    if (null_approach == "systematic"):
+        data['other_group_pop'] = data['total_pop_var'] - data['group_pop_var']
+        p_j = data['total_pop_var'] / data['total_pop_var'].sum()
+
+        # Group 0: minority group
+        p0_i = p_j
+        n0 = data['group_pop_var'].sum()
+        sim0 = np.random.multinomial(n0, p0_i, size=iterations_under_null)
+
+        # Group 1: complement group
+        p1_i = p_j
+        n1 = data['other_group_pop'].sum()
+        sim1 = np.random.multinomial(n1, p1_i, size=iterations_under_null)
+
+        with tqdm(total=iterations_under_null) as pbar:
+            for i in np.array(range(iterations_under_null)):
+                data_aux = {
+                    'simul_group': sim0[i].tolist(),
+                    'simul_tot': (sim0[i] + sim1[i]).tolist()
+                }
+                df_aux = pd.DataFrame.from_dict(data_aux)
+
+                if (str(type(data)) == '<class \'geopandas.geodataframe.GeoDataFrame\'>'):
+                    df_aux = gpd.GeoDataFrame(df_aux)
+                    df_aux['geometry'] = data['geometry']
+
+                    Estimates_Stars[i] = seg_class._function(df_aux, 'simul_group', 'simul_tot', **kwargs)[0]
+                    pbar.set_description('Processed {} iterations out of {}'.format(i + 1, iterations_under_null))
+                    pbar.update(1)
+
+
+```
 
 
 
