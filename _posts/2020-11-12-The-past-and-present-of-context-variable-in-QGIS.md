@@ -153,3 +153,13 @@ def runAlgorithm(self):
 ```
 
 在我们写独立脚本的时候，就不需要创造这个feedback变量了。
+
+总结， 我们只需要添加下面的代码就可以创造context变量了
+
+```python
+from processing.tools import dataobjects
+...
+context = dataobjects.createContext()
+...
+```
+
