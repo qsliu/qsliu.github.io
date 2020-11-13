@@ -229,7 +229,7 @@ np.random.binomial([[10,10,10]],p=0.2)
 #array([[1, 3, 1]])
 ```
 
-
+![image-20201113103449222](/images/blog/2020-11-11/image-20201113103217335.png)
 
 ### 2.4 "permutation"            
 
@@ -353,11 +353,11 @@ if (null_approach == "even_permutation"):
 ## 3 two value inference
 
 * "**random_label**"               : random label the data in each iteration
-          
+  
 * "**counterfactual_composition**" : randomizes the number of minority population according to both cumulative distribution function of a variable that represents the composition of the minority group. The composition is the division of the minority population of unit i divided by total population of tract i.
-      
+  
 * "**counterfactual_share**" : randomizes the number of minority population and total population according to both cumulative distribution function of a variable that represents the share of the minority group. The share is the division of the minority population of unit i divided by total population of minority population.
-          
+  
 * "**counterfactual_dual_composition**" : applies the "counterfactual_composition" for both minority and complementary groups.
 
 ### 3.1 random label
@@ -412,9 +412,9 @@ np.random.permutation([1, 4, 9, 12, 15])
 #array([15,  1,  9,  4, 12]) # random
 ```
 
-![img](/images/blog/2020-11-11/20201111_clip_image001.png)
 
 
+![image-20201113103621207](/images/blog/2020-11-11/image-20201113103621207.png)
 
 
 
