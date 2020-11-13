@@ -229,7 +229,7 @@ np.random.binomial([[10,10,10]],p=0.2)
 #array([[1, 3, 1]])
 ```
 
-![image-20201113103449222](/images/blog/2020-11-11/image-20201113103217335.png)
+![image-20201113104349258](/images/blog/2020-11-11/image-20201113103217335.png)
 
 ### 2.4 "permutation"            
 
